@@ -11,74 +11,103 @@ def setup_database():
     cursor.execute('DROP TABLE IF EXISTS Products')
     cursor.execute('DROP TABLE IF EXISTS TransactionIn')
     cursor.execute('DROP TABLE IF EXISTS TransactionOut')
+    cursor.execute('DROP TABLE IF EXISTS Vendors')
+    cursor.execute('DROP TABLE IF EXISTS Customers')
     
     # Create table if not exist
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS Products(
-                   PID integer Primary Key,
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Products(
+                   Product_name varchar(20) Primary Key,
                    Company varchar(20),
                    Brand varchar(20),
-                   Product_name varchar(20),
                    Unit_Price float,
                    Quantity integer,
                    CGST decimal(5,2),
                    SGST decimal(5,2),
                    CESS decimal(5,2)
-                   )
-                   ''')
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS TransactionIn(
+                   )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS TransactionIn(
                    TransactionID integer Primary Key,
                    Company varchar(20),
                    CompanyGSTIN text,
-                   Product_ID integer,
+                   Product_Name varchar(20),
                    Contact int,
                    Brand varchar(20),  
                    Quantity integer,  
                    TransactionTime timestamp,  
-                   FOREIGN KEY (Product_ID) REFERENCES Products (PID)
-                   )
-                   ''')
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS TransactionOut(
+                   FOREIGN KEY (Product_Name) REFERENCES Products (Product_name)
+                   )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS TransactionOut(
                    Bill_Number INTEGER PRIMARY KEY AUTOINCREMENT,
-                   Product_Id INTEGER,
+                   Product_Name varchar(20),
                    Quantity INTEGER,
                    Total_Price REAL,
                    Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                   FOREIGN KEY (Product_Id) REFERENCES Products (PID)  -- Ensure correct column name
-                   )
-    ''')
+                   FOREIGN KEY (Product_Name) REFERENCES Products (Product_name)
+                   )''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Vendors(
+                   VendorID integer Primary Key,
+                   Name varchar(50),
+                   Contact varchar(15),
+                   GSTIN varchar(15)
+                   )''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Customers(
+                   CustomerID integer Primary Key,
+                   Name varchar(50),
+                   Contact varchar(15),
+                   GSTIN varchar(15),
+                   Address varchar(100)
+                   )''')
 
     conn.commit()
     conn.close()
 
 # Function to add stock
-def add_stock(PID, Brand, Company, CompanyGSTIN, Contact, Product_name, Unit_Price, Quantity, CGST, SGST, CESS):
+def add_stock(Product_name, Brand, Company, CompanyGSTIN, Contact, Unit_Price, Quantity, CGST, SGST, CESS):
     conn=sqlite3.connect('management.db')
     cursor=conn.cursor()
-    cursor.execute("INSERT into Products(PID, Company, Brand, Product_name, Unit_Price, Quantity, CGST, SGST, CESS) VALUES (?,?,?,?,?,?,?,?,?)",(PID, Company, Brand, Product_name, Unit_Price, Quantity, CGST, SGST, CESS))
-    PID=cursor.lastrowid
-    cursor.execute('INSERT INTO TransactionIn (Product_Id, Brand, Quantity) VALUES (?, ?, ?)', (PID, Brand, Quantity))
+    cursor.execute("INSERT into Products(Product_name, Company, Brand, Unit_Price, Quantity, CGST, SGST, CESS) VALUES (?,?,?,?,?,?,?,?)",(Product_name, Company, Brand, Unit_Price, Quantity, CGST, SGST, CESS))
+    cursor.execute('INSERT INTO TransactionIn (Product_Name, Brand, Quantity) VALUES (?, ?, ?)', (Product_name, Brand, Quantity))
     conn.commit()
     conn.close()
     messagebox.showinfo("Success", "Stock added successfully!")
 
 # Function to process sales
-def sales(Product_Id, Quantity):
+def sales(Product_Name, Quantity):
     conn=sqlite3.connect('management.db')
     cursor=conn.cursor()
-    cursor.execute('SELECT Quantity, Price FROM Products WHERE PID=?', (Product_Id,))
+    cursor.execute('SELECT Quantity, Unit_Price FROM Products WHERE Product_name=?', (Product_Name,))
     result=cursor.fetchone()
     if result and result[0]>= Quantity:
         total_price= result[1]*Quantity
-        cursor.execute('UPDATE Products SET Quantity=Quantity - ? WHERE PID=?', (Quantity, Product_Id))
-        cursor.execute('INSERT INTO TransactionOut (Product_Id, Quantity, Total_Price) VALUES (?, ?, ?)', (Product_Id, Quantity, total_price))
+        cursor.execute('UPDATE Products SET Quantity=Quantity - ? WHERE Product_name=?', (Quantity, Product_Name))
+        cursor.execute('INSERT INTO TransactionOut (Product_Name, Quantity, Total_Price) VALUES (?, ?, ?)', (Product_Name, Quantity, total_price))
         conn.commit()
         messagebox.showinfo('Success', "Sale processed successfully!")
     else:
         messagebox.showerror('Error', "Insufficient stock!")
     conn.close()
+
+# Function to add a vendor
+def add_vendor(VendorID, Name, Contact, GSTIN):
+    conn = sqlite3.connect('management.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Vendors (VendorID, Name, Contact, GSTIN) VALUES (?, ?, ?, ?)", (VendorID, Name, Contact, GSTIN))
+    conn.commit()
+    conn.close()
+    messagebox.showinfo("Success", "Vendor added successfully!")
+
+# Function to add a customer
+def add_customer(CustomerID, Name, Contact, GSTIN, Address):
+    conn = sqlite3.connect('management.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Customers (CustomerID, Name, Contact, GSTIN, Address) VALUES (?, ?, ?, ?, ?)", (CustomerID, Name, Contact, GSTIN, Address))
+    conn.commit()
+    conn.close()
+    messagebox.showinfo("Success", "Customer added successfully!")
 
 # Main application window 
 def main_window():
@@ -86,11 +115,10 @@ def main_window():
     root.title('Stock Management App')
 
     # Treeview to display products
-    tree=ttk.Treeview(root, columns=('PID', 'Company', 'Brand', 'Product Name', 'Unit Price', 'Quantity', 'CGST', 'SGST', 'CESS'), show='headings')
-    tree.heading('PID', text='PID')
+    tree=ttk.Treeview(root, columns=('Product Name', 'Company', 'Brand', 'Unit Price', 'Quantity', 'CGST', 'SGST', 'CESS'), show='headings')
+    tree.heading('Product Name', text='Product Name')
     tree.heading('Company', text='Company')
     tree.heading('Brand', text='Brand')
-    tree.heading('Product Name', text='Product Name')
     tree.heading('Unit Price', text='Unit Price')
     tree.heading('Quantity', text='Quantity')
     tree.heading('CGST', text='CGST')
@@ -112,26 +140,27 @@ def main_window():
     load_products()
 
     # Buttons for adding stock and processing sales 
+    button_frame = Frame(root)
+    button_frame.pack(pady=10)
+
     def open_add_stock_window():
         add_stock_window= Toplevel(root)
         add_stock_window.title('Add Stock')
 
-        Label(add_stock_window, text="PID").grid(row=0, column=0)
+        Label(add_stock_window, text="Product Name").grid(row=0, column=0)
         Label(add_stock_window, text="Company").grid(row=1, column=0)
         Label(add_stock_window, text="Brand").grid(row=2, column=0)
-        Label(add_stock_window, text="Product Name").grid(row=3, column=0)
-        Label(add_stock_window, text="Quantity").grid(row=4, column=0)
-        Label(add_stock_window, text="Price").grid(row=5, column=0)
-        Label(add_stock_window, text="CGST").grid(row=6, column=0)
-        Label(add_stock_window, text="SGST").grid(row=7, column=0)
-        Label(add_stock_window, text="CESS").grid(row=8, column=0)
-        Label(add_stock_window, text="Contact").grid(row=9, column=0)
-        Label(add_stock_window, text="Company GSTIN").grid(row=10, column=0)
+        Label(add_stock_window, text="Quantity").grid(row=3, column=0)
+        Label(add_stock_window, text="Price").grid(row=4, column=0)
+        Label(add_stock_window, text="CGST").grid(row=5, column=0)
+        Label(add_stock_window, text="SGST").grid(row=6, column=0)
+        Label(add_stock_window, text="CESS").grid(row=7, column=0)
+        Label(add_stock_window, text="Contact").grid(row=8, column=0)
+        Label(add_stock_window, text="Company GSTIN").grid(row=9, column=0)
 
-        pid_entry = Entry(add_stock_window)
+        product_name_entry = Entry(add_stock_window)
         company_entry = Entry(add_stock_window)
         brand_entry = Entry(add_stock_window)
-        name_entry = Entry(add_stock_window)
         quantity_entry = Entry(add_stock_window)
         price_entry = Entry(add_stock_window)
         CGST_entry = Entry(add_stock_window)
@@ -140,21 +169,19 @@ def main_window():
         contact_entry = Entry(add_stock_window)
         gstin_entry = Entry(add_stock_window)
 
-        pid_entry.grid(row=0, column=1)
+        product_name_entry.grid(row=0, column=1)
         company_entry.grid(row=1, column=1)
         brand_entry.grid(row=2, column=1)
-        name_entry.grid(row=3, column=1)
-        quantity_entry.grid(row=4, column=1)
-        price_entry.grid(row=5, column=1)
-        CGST_entry.grid(row=6, column=1)
-        SGST_entry.grid(row=7, column=1)
-        CESS_entry.grid(row=8, column=1)
-        contact_entry.grid(row=9, column=1)
-        gstin_entry.grid(row=10, column=1)
+        quantity_entry.grid(row=3, column=1)
+        price_entry.grid(row=4, column=1)
+        CGST_entry.grid(row=5, column=1)
+        SGST_entry.grid(row=6, column=1)
+        CESS_entry.grid(row=7, column=1)
+        contact_entry.grid(row=8, column=1)
+        gstin_entry.grid(row=9, column=1)
 
         def add_stock_action():
-            PID = int(pid_entry.get())
-            Product_name = name_entry.get()
+            Product_name = product_name_entry.get()
             Company = company_entry.get()
             Brand = brand_entry.get()
             Quantity = int(quantity_entry.get())
@@ -164,36 +191,104 @@ def main_window():
             CESS = float(CESS_entry.get())
             CompanyGSTIN = gstin_entry.get()
             Contact = int(contact_entry.get())
-            add_stock(PID, Brand, Company, CompanyGSTIN, Contact, Product_name, Price, Quantity, CGST, SGST, CESS)
+            add_stock(Product_name, Brand, Company, CompanyGSTIN, Contact, Price, Quantity, CGST, SGST, CESS)
             load_products()
             add_stock_window.destroy()
 
-        Button(add_stock_window, text="Add", command=add_stock_action).grid(row=11, columnspan=2)
+        Button(add_stock_window, text="Add", command=add_stock_action).grid(row=10, columnspan=2)
     
     def open_process_sale_window():
         process_sale_window=Toplevel(root)
         process_sale_window.title("Billing")
         
-        Label(process_sale_window, text="Product ID").grid(row=0, column=0)
+        Label(process_sale_window, text="Product Name").grid(row=0, column=0)
         Label(process_sale_window, text="Quantity").grid(row=1, column=0)
 
-        id_entry = Entry(process_sale_window)
+        product_name_entry = Entry(process_sale_window)
         quantity_entry = Entry(process_sale_window)
         
-        id_entry.grid(row=0, column=1)
+        product_name_entry.grid(row=0, column=1)
         quantity_entry.grid(row=1, column=1)
 
         def process_sale_action():
-            Product_id = id_entry.get()
+            Product_Name = product_name_entry.get()
             Quantity = int(quantity_entry.get())
-            sales(Product_id, Quantity)
+            sales(Product_Name, Quantity)
             load_products()
             process_sale_window.destroy()
 
         Button(process_sale_window, text='Process Sale', command=process_sale_action).grid(row=2, columnspan=2)
-    
-    Button(root, text="Add Stock", command=open_add_stock_window).pack()
-    Button(root, text="Billing", command=open_process_sale_window).pack()
+
+    def open_add_vendor_window():
+        add_vendor_window = Toplevel(root)
+        add_vendor_window.title("Add Vendor")
+
+        Label(add_vendor_window, text="Vendor ID").grid(row=0, column=0)
+        Label(add_vendor_window, text="Name").grid(row=1, column=0)
+        Label(add_vendor_window, text="Contact").grid(row=2, column=0)
+        Label(add_vendor_window, text="GSTIN").grid(row=3, column=0)
+
+        vendor_id_entry = Entry(add_vendor_window)
+        name_entry = Entry(add_vendor_window)
+        contact_entry = Entry(add_vendor_window)
+        gstin_entry = Entry(add_vendor_window)
+
+        vendor_id_entry.grid(row=0, column=1)
+        name_entry.grid(row=1, column=1)
+        contact_entry.grid(row=2, column=1)
+        gstin_entry.grid(row=3, column=1)
+
+        def add_vendor_action():
+            VendorID = int(vendor_id_entry.get())
+            Name = name_entry.get()
+            Contact = contact_entry.get()
+            GSTIN = gstin_entry.get()
+            add_vendor(VendorID, Name, Contact, GSTIN)
+            add_vendor_window.destroy()
+
+        Button(add_vendor_window, text="Add Vendor", command=add_vendor_action).grid(row=4, columnspan=2)
+
+    def open_add_customer_window():
+        add_customer_window = Toplevel(root)
+        add_customer_window.title("Add Customer")
+
+        Label(add_customer_window, text="Customer ID").grid(row=0, column=0)
+        Label(add_customer_window, text="Name").grid(row=1, column=0)
+        Label(add_customer_window, text="Contact").grid(row=2, column=0)
+        Label(add_customer_window, text="GSTIN").grid(row=3, column=0)
+        Label(add_customer_window, text="Address").grid(row=4, column=0)
+
+        customer_id_entry = Entry(add_customer_window)
+        name_entry = Entry(add_customer_window)
+        contact_entry = Entry(add_customer_window)
+        gstin_entry = Entry(add_customer_window)
+        address_entry = Entry(add_customer_window)
+
+        customer_id_entry.grid(row=0, column=1)
+        name_entry.grid(row=1, column=1)
+        contact_entry.grid(row=2, column=1)
+        gstin_entry.grid(row=3, column=1)
+        address_entry.grid(row=4, column=1)
+
+        def add_customer_action():
+            CustomerID = int(customer_id_entry.get())
+            Name = name_entry.get()
+            Contact = contact_entry.get()
+            GSTIN = gstin_entry.get()
+            Address = address_entry.get()
+            add_customer(CustomerID, Name, Contact, GSTIN, Address)
+            add_customer_window.destroy()
+
+        Button(add_customer_window, text="Add Customer", command=add_customer_action).grid(row=5, columnspan=2)
+
+    # Arrange buttons in an ordered manner
+    button_frame = Frame(root)
+    button_frame.pack(pady=10)
+
+    Button(button_frame, text="Add Stock", command=open_add_stock_window).grid(row=0, column=0, padx=5)
+    Button(button_frame, text="Billing", command=open_process_sale_window).grid(row=0, column=1, padx=5)
+    Button(button_frame, text="Add Vendor", command=open_add_vendor_window).grid(row=0, column=2, padx=5)
+    Button(button_frame, text="Add Customer", command=open_add_customer_window).grid(row=0, column=3, padx=5)
 
     root.mainloop()
 
