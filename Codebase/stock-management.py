@@ -8,23 +8,12 @@ def setup_database():
     cursor = conn.cursor()
 
     # Check if tables exist before dropping them
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Products';")
-    if cursor.fetchone() is not None:
-        cursor.execute('DROP TABLE IF EXISTS Products')
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='TransactionIn';")
-    if cursor.fetchone() is not None:
-        cursor.execute('DROP TABLE IF EXISTS TransactionIn')
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='TransactionOut';")
-    if cursor.fetchone() is not None:
-        cursor.execute('DROP TABLE IF EXISTS TransactionOut')
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Vendors';")
-    if cursor.fetchone() is not None:
-        cursor.execute('DROP TABLE IF EXISTS Vendors')
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Customers';")
-    if cursor.fetchone() is not None:
-        cursor.execute('DROP TABLE IF EXISTS Customers')
+    # cursor.execute('DROP TABLE IF EXISTS Products')
+    # cursor.execute('DROP TABLE IF EXISTS TransactionIn')
+    # cursor.execute('DROP TABLE IF EXISTS TransactionOut')
+    # cursor.execute('DROP TABLE IF EXISTS Vendors')
+    # cursor.execute('DROP TABLE IF EXISTS Customers')
 
-    
     # Create table if not exist
     cursor.execute('''CREATE TABLE IF NOT EXISTS Products(
                    Product_name varchar(20) Primary Key,
@@ -72,9 +61,34 @@ def setup_database():
                    GSTIN varchar(15),
                    Address varchar(100)
                    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS GSTSlabs(
+                   SlabID integer Primary Key AUTOINCREMENT,
+                   SlabPercentage decimal(5,2)
+                   )''')  # Create GSTSlabs table
 
     conn.commit()
     conn.close()
+
+# Function to add a new GST slab
+def add_gst_slab(slab_percentage):
+    conn = sqlite3.connect('management.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO GSTSlabs (SlabPercentage) VALUES (?)", (slab_percentage,))
+
+    conn.commit()
+    conn.close()
+
+# Function to fetch GST slabs
+def fetch_gst_slabs():
+    conn = sqlite3.connect('management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT SlabPercentage FROM GSTSlabs ORDER BY SlabPercentage ASC')
+
+    gst_slabs = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return gst_slabs
+
 
 # Function to add stock
 def add_stock(Product_name, Brand, Company, CompanyGSTIN, Contact, Unit_Price, Quantity, CGST, SGST, CESS):
@@ -148,6 +162,62 @@ def main_window():
     root=Tk()
     root.title('Stock Management App')
 
+    # Buttons for adding stock and processing sales 
+    button_frame = Frame(root)
+    button_frame.pack(pady=10)
+
+    # Function to open the manage gst slabs section 
+    def open_manage_gst_slabs_window():
+        manage_gst_slabs_window = Toplevel(root)
+        manage_gst_slabs_window.title("Manage GST Slabs")
+
+        # Function to add new gst slabs 
+        Label(manage_gst_slabs_window, text="Add GST Slab").grid(row=0, column=0)
+        gst_slab_entry = Entry(manage_gst_slabs_window)
+        gst_slab_entry.grid(row=0, column= 1)
+
+        def add_gst_slab_action():
+            slab_percentage = float(gst_slab_entry.get()) if gst_slab_entry.get() else 0
+            add_gst_slab(slab_percentage)
+            messagebox.showinfo("Success", "GST slab added successfully!")
+
+            manage_gst_slabs_window.destroy()
+        
+        Button(manage_gst_slabs_window, text="Add Slab", command=add_gst_slab_action).grid(row=0, column=4)
+
+        # Function to view gst slabs 
+        gst_slabs = fetch_gst_slabs()
+        Label(manage_gst_slabs_window, text="GST Slabs").grid(row=2, column=0, columnspan=2)
+
+        # Create a treeview to display GST slabs
+        tree = ttk.Treeview(manage_gst_slabs_window, columns=('SlabPercentage'), show='headings')
+
+        tree.heading('SlabPercentage', text='Slab Percentage')
+
+        tree.grid(row=3, column=0, columnspan=2, sticky='nsew')
+
+        for slab in gst_slabs:
+            tree.insert('', 'end', values=(slab,))
+
+        # Function to delete selected GST slab
+        def delete_selected_slab():
+            selected_item = tree.selection()
+            if selected_item:
+                slab_percentage = tree.item(selected_item, 'values')[0]
+                conn = sqlite3.connect('management.db')
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM GSTSlabs WHERE SlabPercentage=?", (slab_percentage,))
+                conn.commit()
+                conn.close()
+                tree.delete(selected_item)  # Remove from treeview
+                messagebox.showinfo("Success", "GST slab deleted successfully!")
+        
+        Button(manage_gst_slabs_window, text="Delete Slab", command=delete_selected_slab).grid(row=4, column=0, columnspan=2)
+
+        manage_gst_slabs_window.mainloop() 
+
+    Button(button_frame, text="Manage GST Slabs", command=open_manage_gst_slabs_window).grid(row=0, column=5, padx=5)
+    
     # Treeview to display products
     tree=ttk.Treeview(root, columns=('Product Name', 'Company', 'Brand', 'Unit Price', 'Quantity', 'CGST', 'SGST', 'CESS'), show='headings')
     tree.heading('Product Name', text='Product Name')
@@ -173,10 +243,6 @@ def main_window():
     
     load_products()
 
-    # Buttons for adding stock and processing sales 
-    button_frame = Frame(root)
-    button_frame.pack(pady=10)
-
     def open_add_stock_window():
         add_stock_window= Toplevel(root)
         add_stock_window.title('Add Stock')
@@ -188,10 +254,13 @@ def main_window():
         Label(add_stock_window, text="Price").grid(row=4, column=0, padx=5, pady=5, sticky='w')
         Label(add_stock_window, text="Select GST Slab").grid(row=5, column=0, padx=5, pady=5, sticky='w')
 
-        gst_slab_combobox = ttk.Combobox(add_stock_window, values=["5%", "12%", "18%", "28%"], width=10)
+        gst_slabs = fetch_gst_slabs()
+        gst_slab_combobox = ttk.Combobox(add_stock_window, values=gst_slabs, width=10)
         gst_slab_combobox.grid(row=5, column=1, padx=5, pady=5)
 
-        gst_slab_combobox.current(0)  # Set default value to the first slab
+        if gst_slabs:
+            gst_slab_combobox.current(int(0))  # Set default value to the first slab
+
         Label(add_stock_window, text="CGST").grid(row=7, column=0, padx=5, pady=5, sticky='w')
         Label(add_stock_window, text="SGST").grid(row=8, column=0, padx=5, pady=5, sticky='w')
 
@@ -228,15 +297,17 @@ def main_window():
             Quantity = int(quantity_entry.get())
             Price = float(price_entry.get())
             selected_slab = gst_slab_combobox.get()
-            slab_value = float(selected_slab[:-1]) if '%' in selected_slab else float(selected_slab)  # Convert to float
+            slab_value = float(selected_slab[:-1]) if '%' in selected_slab and selected_slab else 0  # Convert to float
+
             CGST = slab_value / 100 / 2  # Calculate CGST as half of the slab percentage
             SGST = slab_value / 100 / 2  # Calculate SGST as half of the slab percentage
 
             # Update the entry fields to show calculated values
             CGST_entry.delete(0, END)  # Clear the CGST entry field
-            slab_value = float(selected_slab[:-1]) if '%' in selected_slab else float(selected_slab)  # Convert to float
-            CGST = (slab_value / 2)  # Calculate CGST
-            SGST = (slab_value / 2)  # Calculate SGST
+            # slab_value = float(selected_slab[:-1]) if '%' in selected_slab else float(selected_slab)  # Convert to float
+            # CGST = (slab_value / 2)  # Calculate CGST
+            # SGST = (slab_value / 2)  # Calculate SGST
+            # CGST_entry.delete(0,END)
             CGST_entry.insert(0, f"{CGST:.2f}")  # Set the CGST entry field with the calculated value
             SGST_entry.delete(0, END)  # Clear the SGST entry field
             SGST_entry.insert(0, f"{SGST:.2f}")  # Set the SGST entry field with the calculated value
@@ -250,7 +321,7 @@ def main_window():
             add_stock_window.destroy()
 
         Button(add_stock_window, text="Add", command=add_stock_action).grid(row=12, columnspan=2)
-    
+
     def open_process_sale_window():
         process_sale_window=Toplevel(root)
         process_sale_window.title("Billing")
@@ -343,7 +414,6 @@ def main_window():
     Button(button_frame, text="Billing", command=open_process_sale_window).grid(row=0, column=1, padx=5)
     Button(button_frame, text="Add Vendor", command=open_add_vendor_window).grid(row=0, column=2, padx=5)
     Button(button_frame, text="Add Customer", command=open_add_customer_window).grid(row=0, column=3, padx=5)
-
     root.mainloop()
 
 # Run the application 
