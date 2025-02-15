@@ -2,6 +2,145 @@ import sqlite3
 from tkinter import *
 from tkinter import messagebox, ttk
 
+class StockManagementApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title('Stock Management App')
+
+        # Main container
+        self.main_container = Frame(self.root)
+        self.main_container.pack(fill=BOTH, expand=True)
+
+        # Content Frame
+        self.content_frame = Frame(self.main_container)
+        self.content_frame.pack(side=RIGHT, fill=BOTH, expand=True)
+
+        # Hamburger Menu Frame
+        self.menu_frame = Frame(self.main_container, width=200, bg='lightgray')
+        
+        # Hamburger Button
+        self.hamburger_button = Button(self.main_container, text="☰", command=self.toggle_menu)
+        self.hamburger_button.pack(side=LEFT, anchor=NW)
+
+        # Menu Items
+        self.add_vendor_button = Button(self.menu_frame, text="Add Vendor", command=self.open_add_vendor_window)
+        self.add_vendor_button.pack(fill=X)
+
+        self.add_customer_button = Button(self.menu_frame, text="Add Customer", command=self.open_add_customer_window)
+        self.add_customer_button.pack(fill=X)
+
+        # Initially hide the menu
+        self.menu_visible = True
+        self.menu_frame.pack_forget()
+
+        # Initialize form visibility states
+        self.vendor_form_visible = False
+        self.customer_form_visible = False
+
+    def toggle_menu(self):
+        if self.menu_visible:
+            self.menu_frame.pack_forget()
+        else:
+            self.menu_frame.pack(side=LEFT, fill=Y)
+        self.menu_visible = not self.menu_visible
+
+    def open_add_vendor_window(self):
+        # Toggle visibility
+        if self.vendor_form_visible:
+            for widget in self.content_frame.winfo_children():
+                widget.destroy()
+            self.vendor_form_visible = False
+            return
+
+        # Clear content frame
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        # Create form in content frame
+        self.vendor_form_visible = True
+        
+        Label(self.content_frame, text="Vendor ID").pack()
+        vendor_id_entry = Entry(self.content_frame)
+        vendor_id_entry.pack()
+
+        Label(self.content_frame, text="Name").pack()
+        name_entry = Entry(self.content_frame)
+        name_entry.pack()
+
+        Label(self.content_frame, text="Contact").pack()
+        contact_entry = Entry(self.content_frame)
+        contact_entry.pack()
+
+        Label(self.content_frame, text="GSTIN").pack()
+        gstin_entry = Entry(self.content_frame)
+        gstin_entry.pack()
+
+        def add_vendor_action():
+            VendorID = int(vendor_id_entry.get())
+            Name = name_entry.get()
+            Contact = contact_entry.get()
+            GSTIN = gstin_entry.get()
+            add_vendor(VendorID, Name, Contact, GSTIN)
+            # Clear entries after adding
+            vendor_id_entry.delete(0, END)
+            name_entry.delete(0, END)
+            contact_entry.delete(0, END)
+            gstin_entry.delete(0, END)
+
+        Button(self.content_frame, text="Add Vendor", command=add_vendor_action).pack()
+
+    def open_add_customer_window(self):
+        # Toggle visibility
+        if self.customer_form_visible:
+            for widget in self.content_frame.winfo_children():
+                widget.destroy()
+            self.customer_form_visible = False
+            return
+
+        # Clear content frame
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        # Create form in content frame
+        self.customer_form_visible = True
+        
+        Label(self.content_frame, text="Customer ID").pack()
+        customer_id_entry = Entry(self.content_frame)
+        customer_id_entry.pack()
+
+        Label(self.content_frame, text="Name").pack()
+        name_entry = Entry(self.content_frame)
+        name_entry.pack()
+
+        Label(self.content_frame, text="Contact").pack()
+        contact_entry = Entry(self.content_frame)
+        contact_entry.pack()
+
+        Label(self.content_frame, text="GSTIN").pack()
+        gstin_entry = Entry(self.content_frame)
+        gstin_entry.pack()
+
+        Label(self.content_frame, text="Address").pack()
+        address_entry = Entry(self.content_frame)
+        address_entry.pack()
+
+        def add_customer_action():
+            CustomerID = int(customer_id_entry.get())
+            Name = name_entry.get()
+            Contact = contact_entry.get()
+            GSTIN = gstin_entry.get()
+            Address = address_entry.get()
+            add_customer(CustomerID, Name, Contact, GSTIN, Address)
+            # Clear entries after adding
+            customer_id_entry.delete(0, END)
+            name_entry.delete(0, END)
+            contact_entry.delete(0, END)
+            gstin_entry.delete(0, END)
+            address_entry.delete(0, END)
+
+        Button(self.content_frame, text="Add Customer", command=add_customer_action).pack()
+
+# [Rest of the file remains unchanged...]
 # Database setup
 def setup_database():
     conn = sqlite3.connect('management.db')
@@ -159,15 +298,19 @@ def add_customer(CustomerID, Name, Contact, GSTIN, Address):
 
 # Main application window 
 def main_window():
-    root=Tk()
+    root = Tk()
     root.title('Stock Management App')
-
+    
+    # Create the main app instance
+    app = StockManagementApp(root)
+    
     # Buttons for adding stock and processing sales 
     button_frame = Frame(root)
     button_frame.pack(pady=10)
 
     # Function to open the manage gst slabs section 
     def open_manage_gst_slabs_window():
+
         manage_gst_slabs_window = Toplevel(root)
         manage_gst_slabs_window.title("Manage GST Slabs")
 
@@ -344,79 +487,17 @@ def main_window():
 
         Button(process_sale_window, text='Process Sale', command=process_sale_action).grid(row=2, columnspan=2)
 
-    def open_add_vendor_window():
-        add_vendor_window = Toplevel(root)
-        add_vendor_window.title("Add Vendor")
-
-        Label(add_vendor_window, text="Vendor ID").grid(row=0, column=0)
-        Label(add_vendor_window, text="Name").grid(row=1, column=0)
-        Label(add_vendor_window, text="Contact").grid(row=2, column=0)
-        Label(add_vendor_window, text="GSTIN").grid(row=3, column=0)
-
-        vendor_id_entry = Entry(add_vendor_window)
-        name_entry = Entry(add_vendor_window)
-        contact_entry = Entry(add_vendor_window)
-        gstin_entry = Entry(add_vendor_window)
-
-        vendor_id_entry.grid(row=0, column=1)
-        name_entry.grid(row=1, column=1)
-        contact_entry.grid(row=2, column=1)
-        gstin_entry.grid(row=3, column=1)
-
-        def add_vendor_action():
-            VendorID = int(vendor_id_entry.get())
-            Name = name_entry.get()
-            Contact = contact_entry.get()
-            GSTIN = gstin_entry.get()
-            add_vendor(VendorID, Name, Contact, GSTIN)
-            add_vendor_window.destroy()
-
-        Button(add_vendor_window, text="Add Vendor", command=add_vendor_action).grid(row=4, columnspan=2)
-
-    def open_add_customer_window():
-        add_customer_window = Toplevel(root)
-        add_customer_window.title("Add Customer")
-
-        Label(add_customer_window, text="Customer ID").grid(row=0, column=0)
-        Label(add_customer_window, text="Name").grid(row=1, column=0)
-        Label(add_customer_window, text="Contact").grid(row=2, column=0)
-        Label(add_customer_window, text="GSTIN").grid(row=3, column=0)
-        Label(add_customer_window, text="Address").grid(row=4, column=0)
-
-        customer_id_entry = Entry(add_customer_window)
-        name_entry = Entry(add_customer_window)
-        contact_entry = Entry(add_customer_window)
-        gstin_entry = Entry(add_customer_window)
-        address_entry = Entry(add_customer_window)
-
-        customer_id_entry.grid(row=0, column=1)
-        name_entry.grid(row=1, column=1)
-        contact_entry.grid(row=2, column=1)
-        gstin_entry.grid(row=3, column=1)
-        address_entry.grid(row=4, column=1)
-
-        def add_customer_action():
-            CustomerID = int(customer_id_entry.get())
-            Name = name_entry.get()
-            Contact = contact_entry.get()
-            GSTIN = gstin_entry.get()
-            Address = address_entry.get()
-            add_customer(CustomerID, Name, Contact, GSTIN, Address)
-            add_customer_window.destroy()
-
-        Button(add_customer_window, text="Add Customer", command=add_customer_action).grid(row=5, columnspan=2)
-
     # Arrange buttons in an ordered manner
     button_frame = Frame(root)
     button_frame.pack(pady=10)
 
     Button(button_frame, text="Add Stock", command=open_add_stock_window).grid(row=0, column=0, padx=5)
     Button(button_frame, text="Billing", command=open_process_sale_window).grid(row=0, column=1, padx=5)
-    Button(button_frame, text="Add Vendor", command=open_add_vendor_window).grid(row=0, column=2, padx=5)
-    Button(button_frame, text="Add Customer", command=open_add_customer_window).grid(row=0, column=3, padx=5)
+    # Button(button_frame, text="Add Vendor", command=open_add_vendor_window).grid(row=0, column=2, padx=5)
+    # Button(button_frame, text="Add Customer", command=open_add_customer_window).grid(row=0, column=3, padx=5)
     root.mainloop()
 
 # Run the application 
-if __name__=="__main__":
+if __name__ == "__main__":
     setup_database()
     main_window()
